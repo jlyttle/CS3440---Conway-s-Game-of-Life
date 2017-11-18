@@ -1,7 +1,8 @@
 #Jonathan Lyttle
 #jbl160530
 #MIPS Implementation of Conway's Game of Life with Bitmap Display
-#
+#Works with 8 pixel width and height and 512 display width and height
+
 .data
 #golArray:	.space		#Make this a dynamic array later.
 gridSize:	.byte	0	#The width or length of the working grid taken from the user in a menu.
@@ -14,7 +15,7 @@ errorMessage4:	.asciiz	"Enter a correct value for pattern choice."
 Main:
 
 PromptForGridSize:
-	li	$s0, 128	#Debug
+	li	$s0, 64	#Debug
 PromptForSleepTime:
 
 InputValidation: #Check if the grid size (64, 128, 512, or 1024) and sleep time (0-) are valid and reprompt if not.
@@ -36,13 +37,13 @@ PatternMenu: #Choose either the glider gun pattern or a random pattern.
 InitializeArray:	#Create the array with the specified size and chosen pattern.
 
 DisplayGeneration:	#Display the current generation in the bitmap display.
-	mul	$t0, $s0, $s0	#Store the total size of the array in $t0.
+	mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
 	li	$t1, 0		#Initialize variable for current position.
 DrawLoop:
 	add	$a0, $t1, $zero	#Load current position as an argument for GetDisplayAddress.
 	jal	GetDisplayAddress
 	move	$a0, $v0
-	li	$a1, 0x00ff00	#Debug
+	li	$a1, 0x00ff00	#Debug, color green
 	jal	Draw
 	addiu	$t1, $t1, 1		#Increment position
 	bne	$t1, $t0, DrawLoop	#Loop until we've filled the whole display
