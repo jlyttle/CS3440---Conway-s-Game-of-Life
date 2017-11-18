@@ -4,7 +4,7 @@
 #Works with 8 pixel width and height and 512 display width and height
 
 .data
-#golArray:	.space		#Make this a dynamic array later.
+golArray:	.space		#Make this a dynamic array later.
 gridSize:	.word	64	#The width or length of the working grid.
 sleepTime:	.word	0	#The amount of time to wait before displaying the next generation (in ms).
 patternPrompt:	.asciiz	"Choose a pattern (1 for random, 2 for glider gun)"
@@ -42,6 +42,13 @@ PatternMenu: #Choose either the glider gun pattern or a random pattern.
 	move	$s2, $a0
 
 InitializeArray:	#Create the array with the specified size and chosen pattern.
+	#If the user chose random, we want to intialize the array with a chance of having a living cell. To have more space, we'll choose a third of a chance of spawning.
+	li	$t0, 3	#Initialize $t0 to 3 (the value we compare with).
+	li	$v0, 42	#Choose an int between a range.
+	li	$a1, 9	#Set 9 as the upper bound (0 is the lower bound).
+#ArrayLoop:
+#	syscall
+#	bgt	$a0, $t0, ArrayLoop	#If the value we picked was greater than 3, leave the value as 0 and continue.
 
 DisplayGeneration:	#Display the current generation in the bitmap display.
 	mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
