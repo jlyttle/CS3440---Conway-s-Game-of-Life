@@ -5,32 +5,39 @@
 
 .data
 #golArray:	.space		#Make this a dynamic array later.
-gridSize:	.byte	0	#The width or length of the working grid taken from the user in a menu.
-sleepTime:	.byte	0	#The amount of time to wait before displaying the next generation (in ms).
+gridSize:	.word	64	#The width or length of the working grid.
+sleepTime:	.word	0	#The amount of time to wait before displaying the next generation (in ms).
 patternPrompt:	.asciiz	"Choose a pattern (1 for random, 2 for glider gun)"
-errorMessage3:	.asciiz	"Unable to read input, try again."
-errorMessage4:	.asciiz	"Enter a correct value for pattern choice."
+waitTimePrompt: .asciiz	"Enter the amount of time to wait between displaying generations (in ms)"
+errorMessage1:	.asciiz	"Enter a nonnegative value for time between generations."
+errorMessage2:	.asciiz	"Unable to read input, try again."
+errorMessage3:	.asciiz	"Enter a correct value for pattern choice."
 
 .text
 Main:
-
-PromptForGridSize:
-	li	$s0, 64	#Debug
+	lw	$s0, gridSize	#Load the grid size into $s0
 PromptForSleepTime:
-
-InputValidation: #Check if the grid size (64, 128, 512, or 1024) and sleep time (0-) are valid and reprompt if not.
+	li	$v0, 51
+	la	$a0, waitTimePrompt
+	syscall
+	
+	beq	$a1, -1, Error2
+	beq	$a1, -2, Exit
+	beq	$a1, -3, Error2
+	
+	blt	$a0, 0, Error1
 
 PatternMenu: #Choose either the glider gun pattern or a random pattern.
 	li	$v0, 51
 	la	$a0, patternPrompt	#Prompt user for pattern choice
 	syscall
 	
-	beq	$a1, -1, Error3		#If input is unreadable, error
+	beq	$a1, -1, Error2		#If input is unreadable, error
 	beq	$a1, -2, Exit
-	beq	$a1, -3, Error3
+	beq	$a1, -3, Error2
 	
-	blt	$a0, 1, Error4		#If the choice is greater than 3 or less than 1, error
-	bgt	$a0, 2, Error4
+	blt	$a0, 1, Error3		#If the choice is greater than 3 or less than 1, error
+	bgt	$a0, 2, Error3
 	
 	move	$s2, $a0
 
@@ -59,17 +66,24 @@ Draw:	#Draws the pixel to the bitmap display given $a0 (location) and $a1 (color
 	sw	$a1, ($a0)
 	jr	$ra
 
+Error1:
+	li	$v0, 55
+	li	$a1, 0
+	la	$a0, errorMessage1
+	syscall
+	j	PromptForSleepTime
+
+Error2:
+	li	$v0, 55
+	li	$a1, 0
+	la	$a0, errorMessage2
+	syscall
+	j	PatternMenu
+	
 Error3:
 	li	$v0, 55
 	li	$a1, 0
 	la	$a0, errorMessage3
-	syscall
-	j	PatternMenu
-	
-Error4:
-	li	$v0, 55
-	li	$a1, 0
-	la	$a0, errorMessage4
 	syscall
 	j	PatternMenu
 
