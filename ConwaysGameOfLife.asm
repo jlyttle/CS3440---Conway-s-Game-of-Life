@@ -12,9 +12,9 @@
 #$s5 = Total area of the array (64x64)
 
 .data
-birthsAndDeathsArray:	.space	16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
-gridSize:		.word	64	#The width or length of the working grid.
-gridArea:		.word	4096
+birthsAndDeathsArray:	.space	36#16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
+gridSize:		.word	3#64	#The width or length of the working grid.
+gridArea:		.word	9#4096
 deadCellColor:		.word	0x000000	#The color chosen for a dead cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
 sleepTime:		.word	0	#The amount of time to wait before displaying the next generation (in ms).
@@ -66,15 +66,37 @@ InitializeArray:	#Create the array with the chosen pattern.
 	
 	Preset1:
 	#DEBUG: render a single pixel on the grid
-	la	$s1, birthsAndDeathsArray	#Load the birth and death tracking array into $s1		
-	li	$t1, 0				#Get the total size of the space, SRL, and add 32 to get the middle
-	srl	$a0, $s5, 1
-	addiu	$a0, $a0, 32
+	la	$s1, birthsAndDeathsArray	#Load the birth and death tracking array into $s1
+	#srl	$a0, $s5, 1			#Get the total size of the space, SRL, and add 32 to get the middle
+	#addiu	$a0, $a0, 32
+	li	$a0, 3
+	jal	GetDisplayAddress	#Get the address for that space
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw			#Draw the pixel in that space
+	li	$a0, 4
+	jal	GetDisplayAddress	#Get the address for that space
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw			#Draw the pixel in that space
+	li	$a0, 5
 	jal	GetDisplayAddress	#Get the address for that space
 	move	$a0, $v0
 	addu	$a1, $s4, 0
 	jal	Draw			#Draw the pixel in that space
 	
+	#render a 10-cell row to the grid
+	li	$t1, 352
+	Preset2:
+	addu	$a0, $zero, $t1	#Start at pos 352
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal Draw
+	addiu	$t1, $t1, 1
+	ble	$t1, 362, Preset2
+	
+	li	$t1, 0	
 	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
 	InitializeBirthsAndDeathsArray:
 	addu	$t2, $s1, $t1		#Get address for current array index into $t2
@@ -102,7 +124,7 @@ GameOfLife:
 			j	CheckLoop
 			SetDead:
 				sw	$s3, ($t4)
-				b	CheckLoop
+				j	CheckLoop
 		Dead:
 			#if $v1 returned 3, set this cell as alive
 			beq	$v1, 3, SetAlive
@@ -112,7 +134,7 @@ GameOfLife:
 		
 		CheckLoop:	#Check if we still need to loop through the rest of the display
 		addiu	$t5, $t5, 1			#Advance current position by 1
-		bgt	$t5, $s5, DisplayGeneration	#If the current position is greater than the total size, start displaying the births and deaths of this generation
+		beq	$t5, $s5, DisplayGeneration	#If the current position is greater than the total size, start displaying the births and deaths of this generation
 
 	GOLAlgorithm:
 		#Store return address in the stack
@@ -244,6 +266,9 @@ GameOfLife:
 		jr	$ra
 
 DisplayGeneration:	#Display the current generation in the bitmap display from the births and deaths array.
+	#DEBUG: Is it the display code at fault or the array? Let's add white to the first pixel.
+	sw	$s4, ($s1)	#It's the array... So is it the array or the algorithm (really hope it's not the algorithm)
+
 	#mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
 	li	$t1, 0		#Initialize variable for current position.
 	DrawLoop:
