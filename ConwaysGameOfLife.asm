@@ -244,18 +244,22 @@ GameOfLife:
 		jr	$ra
 
 DisplayGeneration:	#Display the current generation in the bitmap display from the births and deaths array.
-	mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
+	#mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
 	li	$t1, 0		#Initialize variable for current position.
-DrawLoop:
-	add	$a0, $t1, $zero	#Load current position as an argument for GetDisplayAddress.
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	li	$a1, 0x00ff00	#Debug, color green
-	jal	Draw
-	addiu	$t1, $t1, 1		#Increment position
-	bne	$t1, $t0, DrawLoop	#Loop until we've filled the whole display
+	DrawLoop:
+		add	$a0, $t1, $zero		#Load current position as an argument for GetDisplayAddress.
+		jal	GetDisplayAddress
+		move	$a0, $v0		#Move display address to arg 0
+		#Decide the color by looking at the births and deaths array at this location
+		mul	$t2, $t1, 4		#Get the word value of the position
+		addu	$t2, $t2, $s1		#Add word offset to base address of array
+		lw	$t3, ($t2)		#Load the color from the array index
+		move	$a1, $t3		#Move the color into argument 1
+		jal	Draw			#Draw the pixel on screen
+		addiu	$t1, $t1, 1		#Increment position
+		bne	$t1, $s5, DrawLoop	#Loop until we've filled the whole display
 	
-	j	Exit
+		j	Exit #DEBUG
 	
 GetDisplayAddress:	#Gets the address for the bitmap display given a position in $a0.
 	mul	$v0, $a0, 4	#Multiply current position by 4 to get word size
