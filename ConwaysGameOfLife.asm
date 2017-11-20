@@ -44,7 +44,7 @@ PatternMenu: #Choose either the glider gun pattern or a random pattern.
 	beq	$a1, -3, Error1
 	
 	blt	$a0, 1, Error2		#If the choice is greater than 3 or less than 1, error
-	bgt	$a0, 2, Error2
+	bgt	$a0, 3, Error2
 	
 	move	$s2, $a0		#Store pattern choice in $s2
 
@@ -130,12 +130,38 @@ InitializeArray:	#Create the array with the chosen pattern.
 	
 	Preset2:
 	#render a 10-cell row to the grid
-	li	$t1, 600
+	li	$t1, 601
+	li	$t2, 610
+	jal	PresetLoop1
+	
+	li	$t1, 1369
+	li	$t2, 1378
+	jal	PresetLoop1
+	
+	li	$t1, 2137
+	li	$t2, 2146
+	jal	PresetLoop1
+	
+	li	$t1, 2905
+	li	$t2, 2914
+	jal	PresetLoop1
+	
+	j	ArrayInit
+	
 	PresetLoop1:
+	#Store return address in the stack
+	addi	$sp, $sp, -4
+	sw	$ra, ($sp)
+	
 	addu	$a0, $zero, $t1	#Start at pos 600
 	jal	DrawForPreset
 	addiu	$t1, $t1, 1
-	ble	$t1, 609, PresetLoop1
+	ble	$t1, $t2, PresetLoop1
+	
+	lw	$ra, ($sp)
+	addi	$sp, $sp, 4
+	
+	jr	$ra
 	
 ArrayInit:	
 	li	$t1, 0	
