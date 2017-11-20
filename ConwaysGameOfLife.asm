@@ -19,46 +19,32 @@ gridSize:		.word	64	#The width or length of the working grid.
 gridArea:		.word	4096
 blankCellColor:		.word	0x000000	#The color chosen for a blank cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
-birthCellColor:		.word	0x00ff00	#The color chosen for a cell just born
-deadCellColor:		.word	0xff0000	#The color chosen for a dead cell
-sleepTime:		.word	0	#The amount of time to wait before displaying the next generation (in ms).
-patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun)"
-waitTimePrompt:		.asciiz	"Enter the amount of time to wait between displaying generations (in ms)"
+deadCellColor:		.word	0xeeeeee	#The starting color for a dead cell
+patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun, 3 for 10-line)"
 continuePrompt:		.asciiz	"Press space to continue another generation or p to go one quarter-generation per second.\n\n"
-errorMessage1:		.asciiz	"Enter a nonnegative value for time between generations."
-errorMessage2:		.asciiz	"Unable to read input, try again."
-errorMessage3:		.asciiz	"Enter a correct value for pattern choice."
+errorMessage1:		.asciiz	"Unable to read input, try again."
+errorMessage2:		.asciiz	"Enter a correct value for pattern choice."
 
 .text
 Main:
-	lw	$s0, gridSize		#Load the grid size into $s0
+	lw	$s0, gridSize			#Load the grid size into $s0
+	la	$s1, birthsAndDeathsArray	#Load the birth and death tracking array into $s1
 	lw	$s3, blankCellColor
 	lw	$s4, livingCellColor
 	lw	$s5, gridArea
-	lw	$s6, birthCellColor
-	lw	$s7, deadCellColor
-PromptForSleepTime:
-	li	$v0, 51
-	la	$a0, waitTimePrompt	#Ask the user how long to wait until displaying the next generation
-	syscall
-	
-	beq	$a1, -1, Error2
-	beq	$a1, -2, Exit		#Validate the input, close if cancel is hit
-	beq	$a1, -3, Error2
-	
-	blt	$a0, 0, Error1
+	lw	$s6, deadCellColor
 
 PatternMenu: #Choose either the glider gun pattern or a random pattern.
 	li	$v0, 51
 	la	$a0, patternPrompt	#Prompt user for pattern choice
 	syscall
 	
-	beq	$a1, -1, Error2		#If input is unreadable, error
+	beq	$a1, -1, Error1		#If input is unreadable, error
 	beq	$a1, -2, Exit
-	beq	$a1, -3, Error2
+	beq	$a1, -3, Error1
 	
-	blt	$a0, 1, Error3		#If the choice is greater than 3 or less than 1, error
-	bgt	$a0, 2, Error3
+	blt	$a0, 1, Error2		#If the choice is greater than 3 or less than 1, error
+	bgt	$a0, 2, Error2
 	
 	move	$s2, $a0		#Store pattern choice in $s2
 
@@ -72,51 +58,17 @@ InitializeArray:	#Create the array with the chosen pattern.
 	li	$a1, 9	#Set 9 as the upper bound (0 is the lower bound).
 	
 	Preset1:
-	#DEBUG: render a single pixel on the grid
-	la	$s1, birthsAndDeathsArray	#Load the birth and death tracking array into $s1
-	srl	$a0, $s5, 1			#Get the total size of the space, SRL, and add 32 to get the middle
-	addiu	$a0, $a0, 32
-	#li	$a0, 3
-	jal	GetDisplayAddress	#Get the address for that space
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw			#Draw the pixel in that space
-	
-	#Corner case
-	li	$a0, 4033
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw
-	
-	li	$a0, 4032
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw
-	
-	li	$a0, 3969
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw
-	
-	li	$a0, 3968
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw
-	
 	#render a 10-cell row to the grid
 	li	$t1, 600
 	Preset2:
-	addu	$a0, $zero, $t1	#Start at pos 352
+	addu	$a0, $zero, $t1	#Start at pos 600
 	jal	GetDisplayAddress
 	move	$a0, $v0
 	addu	$a1, $s4, 0
 	jal Draw
 	addiu	$t1, $t1, 1
 	ble	$t1, 609, Preset2
+	
 	
 	li	$t1, 0	
 	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
@@ -139,25 +91,26 @@ GameOfLife:
 		lw	$t2, ($v0)			#$t2 = color at pixel's address
 		mul	$t4, $t5, 4			#Convert current position to a word value in $t4
 		addu	$t4, $t4, $s1			#Store the base address in the births and deaths array plus the position offset as $t4
-		beq	$t2, $s3, Dead			#If the color we got was black, the current cell is dead
-		Live:					#The current cell is alive if the value isn't blank
+		bne	$t2, $s4, Dead			#If the color we got was not white, the current cell is dead
+		Live:					#The current cell is alive if the value is white
 			#if $v1 returned less than 2, set this cell as dead
 			blt	$v1, 2, SetDead		#Set as dead if there are fewer than 2 neighbors
 			bgt	$v1, 3, SetDead		#Set as dead if there are greater than 3 neighbors
-			j	SetLiving
+			j	SetAlive
 			SetDead:
-				sw	$s3, ($t4)
+				sw	$s6, ($t4)	#Set as white minus grey, to prepare for transition to dead
 				j	CheckLoop
+				
 		Dead:
+			#Set the cell as black if it wasn't already
+			sw	$s3, ($t4)
+		
 			#if $v1 returned 3, set this cell as alive
 			beq	$v1, 3, SetAlive
 			j	CheckLoop
 			SetAlive:
-				sw	$s4, ($t4)
-				j	CheckLoop
-		SetLiving:				#Set as white if the cell continues living
-			sw	$s4, ($t4)
-		
+				sw	$s4, ($t4)	#Alive is white
+				
 		CheckLoop:	#Check if we still need to loop through the rest of the display
 		addiu	$t5, $t5, 1			#Advance current position by 1
 		beq	$t5, $s5, DisplayGeneration	#If the current position is greater than the total size, start displaying the births and deaths of this generation
@@ -185,8 +138,7 @@ GameOfLife:
 		subiu	$a0, $a0, 1
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckTopMiddle	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckTopMiddle
+		bne	$t2, $s4, CheckTopMiddle	#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 		CheckTopMiddle:
@@ -195,8 +147,7 @@ GameOfLife:
 		subu	$a0, $t1, $s0			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckTopRight		#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckTopRight
+		bne	$t2, $s4, CheckTopRight		#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 
 		CheckTopRight:	
@@ -210,8 +161,7 @@ GameOfLife:
 		subu	$a0, $t1, $a0			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckMiddle	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckTopRight
+		bne	$t2, $s4, CheckMiddle		#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 
 	CheckMiddle:
@@ -224,8 +174,7 @@ GameOfLife:
 		addi	$a0, $t1, -1			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckMiddleRight	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckMiddleRight
+		bne	$t2, $s4, CheckMiddleRight	#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 		CheckMiddleRight:
@@ -238,8 +187,7 @@ GameOfLife:
 		addi	$a0, $t1, 1			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckBottom	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckBottom
+		bne	$t2, $s4, CheckBottom		#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 	CheckBottom:
@@ -257,8 +205,7 @@ GameOfLife:
 		addu	$a0, $a0, $t1			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckBottomMiddle	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckBottomMiddle
+		bne	$t2, $s4, CheckBottomMiddle	#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 		CheckBottomMiddle:
@@ -267,8 +214,7 @@ GameOfLife:
 		addu	$a0, $t1, $s0			#$a0 is the new position to check
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, CheckBottomRight	#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, CheckBottomRight
+		bne	$t2, $s4, CheckBottomRight	#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 		CheckBottomRight:
@@ -282,8 +228,7 @@ GameOfLife:
 		addu	$a0, $a0, $s0
 		jal	GetDisplayAddress		#Calculate the address of the pixel
 		lw	$t2, ($v0)			#Load the value at this location into $t2
-		beq	$t2, $s3, Return		#If the value at $t2 is either black or red, don't increment
-		#beq	$t2, 0xff0000, Return
+		bne	$t2, $s4, Return		#If the value at $t2 is not white, don't increment
 		addiu	$v1, $v1, 1			#Increment the neighbor counter
 	
 	Return:
@@ -306,6 +251,30 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 		jal	Draw			#Draw the pixel on screen
 		addiu	$t1, $t1, 1		#Increment position
 		bne	$t1, $s5, DrawLoop	#Loop until we've filled the whole display
+		
+	#Loop 14 times until all grey pixels are transitioned to black
+	li	$t1, 0
+	li	$t4, 0
+	TransitionToBlack:
+		add	$a0, $t1, $zero
+		jal	GetDisplayAddress
+		move	$a0, $v0
+		mul	$t2, $t1, 4
+		addu	$t2, $t2, $gp
+		lw	$t3, ($t2)
+		#if this color is not white and not black, subtract 0x111111 and draw
+		beq	$t3, $s3, Increment
+		beq	$t3, $s4, Increment
+		subu	$t3, $t3, 0x111111
+		move	$a1, $t3
+		jal	Draw
+		Increment:
+		addiu	$t1, $t1, 1
+		bne	$t1, $s5, TransitionToBlack
+		
+	addiu	$t4, $t4, 1
+	move	$t1, $zero
+	bne	$t4, 14, TransitionToBlack
 	
 	#Display current generation number in the cli
 	li	$v0, 1
@@ -343,19 +312,12 @@ Error1:
 	li	$a1, 0
 	la	$a0, errorMessage1
 	syscall
-	j	PromptForSleepTime
-
+	j	PatternMenu
+	
 Error2:
 	li	$v0, 55
 	li	$a1, 0
 	la	$a0, errorMessage2
-	syscall
-	j	PatternMenu
-	
-Error3:
-	li	$v0, 55
-	li	$a1, 0
-	la	$a0, errorMessage3
 	syscall
 	j	PatternMenu
 
