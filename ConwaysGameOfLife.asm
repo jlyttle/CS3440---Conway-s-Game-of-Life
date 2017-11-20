@@ -2,6 +2,7 @@
 #jbl160530
 #MIPS Implementation of Conway's Game of Life with Bitmap Display
 #Works with 8 pixel width and height and 512 display width and height
+#Or 16 unit width and height and 1024 display width and height
 
 #GLOBAL VARIABLES:
 #$s0 = grid width/length
@@ -10,18 +11,18 @@
 #$s3 = Black color (blank)
 #$s4 = White color (Living)
 #$s5 = Total area of the array (64x64)
-#$s6 = Green color (Born)
-#$s7 = Red color (Dead)
+#$s6 = Dying cell color (white minus grey)
+#$t9 = Current generation
 
 .data
-birthsAndDeathsArray:	.space	16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
-gridSize:		.word	64	#The width or length of the working grid.
+birthsAndDeathsArray:	.space	16384		#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
+gridSize:		.word	64		#The width or length of the working grid.
 gridArea:		.word	4096
 blankCellColor:		.word	0x000000	#The color chosen for a blank cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
 deadCellColor:		.word	0xeeeeee	#The starting color for a dead cell
 patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun, 3 for 10-line)"
-continuePrompt:		.asciiz	"Press space to continue another generation or p to go one quarter-generation per second.\n\n"
+continuePrompt:		.asciiz	"Press space to continue another generation, 1 for a random pattern, 2 for glider gun, 3 for 10-line or p to auto-advance.\n\n"
 errorMessage1:		.asciiz	"Unable to read input, try again."
 errorMessage2:		.asciiz	"Enter a correct value for pattern choice."
 
@@ -34,99 +35,132 @@ Main:
 	lw	$s5, gridArea
 	lw	$s6, deadCellColor
 
-PatternMenu: #Choose either the glider gun pattern or a random pattern.
+PatternMenu: 					#Choose either the glider gun, 10-line pattern or a random pattern.
 	li	$v0, 51
-	la	$a0, patternPrompt	#Prompt user for pattern choice
+	la	$a0, patternPrompt		#Prompt user for pattern choice
 	syscall
 	
-	beq	$a1, -1, Error1		#If input is unreadable, error
+	beq	$a1, -1, Error1			#If input is unreadable, error
 	beq	$a1, -2, Exit
 	beq	$a1, -3, Error1
 	
-	blt	$a0, 1, Error2		#If the choice is greater than 3 or less than 1, error
+	blt	$a0, 1, Error2			#If the choice is greater than 3 or less than 1, error
 	bgt	$a0, 3, Error2
 	
-	move	$s2, $a0		#Store pattern choice in $s2
+	move	$s2, $a0			#Store pattern choice in $s2
 
-InitializeArray:	#Create the array with the chosen pattern.
-	beq	$s2, 2, Preset1		#Initialize the glider gun pattern
-	beq	$s2, 3, Preset2		#Initialize the 10-cell row pattern
+ArrayInit:	#Initialize all values in the array to 0 and display
+	li	$t1, 0				#Current position
+	mul	$t3, $s5, 4			#Area size in words to use with the branch in the loop
+	li	$t9, 0				#Reinitialize current generation to 0
+	InitializeBirthsAndDeathsArray:
+	addu	$t2, $s1, $t1					#Get address for current array index into $t2
+	sw	$s3, ($t2)					#Store 0 at the array index (for blank)
+	addiu	$t1, $t1, 4					#Advance the pointer to the next word
+	ble	$t1, $t3, InitializeBirthsAndDeathsArray	#Loop until the array is filled
+	jal	DisplayGeneration
 
-	Random:	
+	#Create the array with the chosen pattern.
+	beq	$s2, 2, Preset1			#Initialize the glider gun pattern
+	beq	$s2, 3, Preset2			#Initialize the 10-cell row pattern
+
 	#If the user chose random, we want to intialize the array with a chance of having a living cell. To have more space, we'll choose a third of a chance of spawning.
-	li	$t0, 3	#Initialize $t0 to 3 (the value we compare with).
-	li	$v0, 42	#Choose an int between a range.
-	li	$a1, 9	#Set 9 as the upper bound (0 is the lower bound).
+	li	$t0, 0				#Current position
+	Random:	
+	li	$v0, 42				#Choose an int between a range.
+	li	$a1, 10				#Set 10 as the upper bound (0 is the lower bound).	
+	syscall					#Get the random number
+	addiu	$t0, $t0, 1			#Increment position
+	blt	$a0, 3, LivingCell		#If the random is less than 5, set cell as living
+	blt	$t0, $s5, Random		#Else, if we're still less than the grid area, loop back to random
+	j	WriteGenToConsole
+	LivingCell:
+	addu	$a0, $t0, $zero			#Draw the cell to the grid
+	jal	DrawForPreset
+	blt	$t0, $s5, Random		#Loop while position is less than the grid area
+	
+	j	WriteGenToConsole		#Write the current generation number to console (gen 0)
 	
 	Preset1:
 	#Glider gun preset
-	li	$a0, 324
+	li	$a0, 452
 	jal	DrawForPreset
-	li	$a0, 325
+	li	$a0, 453
+	jal	DrawForPreset		#Left square
+	li	$a0, 516
 	jal	DrawForPreset
-	li	$a0, 388
-	jal	DrawForPreset
-	li	$a0, 389
+	li	$a0, 517
 	jal	DrawForPreset
 	
-	li	$a0, 333
+	li	$a0, 461
 	jal	DrawForPreset
-	li	$a0, 334
+	li	$a0, 462
+	jal	DrawForPreset		#Left structure
+	li	$a0, 526
 	jal	DrawForPreset
-	li	$a0, 346
+	li	$a0, 524
+	jal	DrawForPreset
+	li	$a0, 588
+	jal	DrawForPreset
+	li	$a0, 589
+	jal	DrawForPreset
+
+	li	$a0, 474
+	jal	DrawForPreset		#Right structure	
+	li	$a0, 475
+	jal	DrawForPreset
+	li	$a0, 410
 	jal	DrawForPreset
 	li	$a0, 347
 	jal	DrawForPreset
-	li	$a0, 398
+	li	$a0, 412
 	jal	DrawForPreset
-	li	$a0, 396
-	jal	DrawForPreset
-	li	$a0, 460
-	jal	DrawForPreset
-	li	$a0, 461
-	jal	DrawForPreset
-	li	$a0, 282
-	jal	DrawForPreset
-	li	$a0, 219
-	jal	DrawForPreset
-	li	$a0, 284
-	jal	DrawForPreset
-	li	$a0, 220
+	li	$a0, 348
 	jal	DrawForPreset
 	
-	li	$a0, 231
+	li	$a0, 358
 	jal	DrawForPreset
-	li	$a0, 295
+	li	$a0, 422
 	jal	DrawForPreset		#Right square
-	li	$a0, 296
+	li	$a0, 423
 	jal	DrawForPreset
-	li	$a0, 232
+	li	$a0, 359
 	jal	DrawForPreset
 	
-	li	$a0, 468
-	jal	DrawForPreset
-	li	$a0, 469
-	jal	DrawForPreset
-	li	$a0, 532
-	jal	DrawForPreset
 	li	$a0, 596
 	jal	DrawForPreset
-	li	$a0, 534
+	li	$a0, 597
+	jal	DrawForPreset
+	li	$a0, 660
+	jal	DrawForPreset		#Left glider
+	li	$a0, 724
+	jal	DrawForPreset
+	li	$a0, 662
 	jal	DrawForPreset
 	
-	li	$a0, 680
-	jal	DrawForPreset
-	li	$a0, 681
-	jal	DrawForPreset
-	li	$a0, 746
-	jal	DrawForPreset
-	li	$a0, 744
+	li	$a0, 807
 	jal	DrawForPreset
 	li	$a0, 808
 	jal	DrawForPreset
+	li	$a0, 873
+	jal	DrawForPreset		#Right glider
+	li	$a0, 871
+	jal	DrawForPreset
+	li	$a0, 935
+	jal	DrawForPreset
 	
-	#j	ArrayInit
-	j	PatternMenu
+	li	$a0, 1116
+	jal	DrawForPreset
+	li	$a0, 1180
+	jal	DrawForPreset
+	li	$a0, 1117
+	jal	DrawForPreset		#Middle glider
+	li	$a0, 1118
+	jal	DrawForPreset
+	li	$a0, 1245
+	jal	DrawForPreset
+	
+	j	WriteGenToConsole
 	
 	Preset2:
 	#render a 10-cell row to the grid
@@ -146,7 +180,7 @@ InitializeArray:	#Create the array with the chosen pattern.
 	li	$t2, 2914
 	jal	PresetLoop1
 	
-	j	ArrayInit
+	j	WriteGenToConsole
 	
 	PresetLoop1:
 	#Store return address in the stack
@@ -160,19 +194,8 @@ InitializeArray:	#Create the array with the chosen pattern.
 	
 	lw	$ra, ($sp)
 	addi	$sp, $sp, 4
-	
 	jr	$ra
-	
-ArrayInit:	
-	li	$t1, 0	
-	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
-	InitializeBirthsAndDeathsArray:
-	addu	$t2, $s1, $t1		#Get address for current array index into $t2
-	sw	$s3, ($t2)		#Store 0 at the array index (for blank)
-	addiu	$t1, $t1, 4		#Advance the pointer to the next word
-	ble	$t1, $t3, InitializeBirthsAndDeathsArray	#Loop until the array is filled
 
-	li	$t9, 0			#Set $t9 to the current generation
 GameOfLife:
 	addiu	$t9, $t9, 1
 	li	$t5, 0			#Set $t5 to the current position
@@ -207,8 +230,11 @@ GameOfLife:
 				
 		CheckLoop:	#Check if we still need to loop through the rest of the display
 		addiu	$t5, $t5, 1			#Advance current position by 1
-		beq	$t5, $s5, DisplayGeneration	#If the current position is greater than the total size, start displaying the births and deaths of this generation
+		beq	$t5, $s5, DisplayAndWrite	#If the current position is greater than the total size, start displaying the births and deaths of this generation
 		j	GOLLoop
+		DisplayAndWrite:
+		jal	DisplayGeneration
+		j	WriteGenToConsole
 
 	GOLAlgorithm:
 		#Store return address in the stack
@@ -332,6 +358,10 @@ GameOfLife:
 		jr	$ra
 
 DisplayGeneration:	#Display the current generation in the bitmap display from the births and deaths array.
+	#Store return address in the stack
+	addi	$sp, $sp, -4
+	sw	$ra, ($sp)
+	
 	li	$t1, 0		#Initialize variable for current position.
 	DrawLoop:
 		add	$a0, $t1, $zero		#Load current position as an argument for GetDisplayAddress.
@@ -370,6 +400,11 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 	move	$t1, $zero
 	bne	$t4, 14, TransitionToBlack
 	
+	lw	$ra, ($sp)
+	addi	$sp, $sp, 4
+	jr	$ra
+	
+WriteGenToConsole:
 	#Display current generation number in the cli
 	li	$v0, 1
 	addu	$a0, $t9, $zero
@@ -383,14 +418,29 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 	syscall
 	li	$v0, 12
 	syscall
-	beq	$v0, 32, GameOfLife
-	beq	$v0, 112, SetAutoOn
+	beq	$v0, 32, GameOfLife		#If the user hits space, loop back to the algorithm
+	beq	$v0, 49, SetRandomPattern	#If the user hits 1, change to a different random pattern
+	beq	$v0, 50, SetGliderPattern	#If the user hits 2, change to the glider pattern
+	beq	$v0, 51, SetTenLinePattern	#If the user hits 3, change to the ten line pattern
+	beq	$v0, 112, SetAutoOn		#If the user hits p or P, change to auto advance
 	beq	$v0, 80, SetAutoOn
 	j	Exit
 	
 	SetAutoOn:
 		li	$t8, 1
 		j	GameOfLife
+		
+	SetRandomPattern:
+		li	$s2, 1			#Chosen pattern is random
+		j	ArrayInit
+	
+	SetGliderPattern:
+		li	$s2, 2			#Chosen pattern is glider
+		j	ArrayInit
+		
+	SetTenLinePattern:
+		li	$s2, 3			#Chosen pattern is 10-line
+		j	ArrayInit
 	
 GetDisplayAddress:	#Gets the address for the bitmap display given a position in $a0.
 	mul	$v0, $a0, 4	#Multiply current position by 4 to get word size
