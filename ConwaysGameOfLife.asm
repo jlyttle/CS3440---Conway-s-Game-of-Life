@@ -12,9 +12,9 @@
 #$s5 = Total area of the array (64x64)
 
 .data
-birthsAndDeathsArray:	.space	36#16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
-gridSize:		.word	3#64	#The width or length of the working grid.
-gridArea:		.word	9#4096
+birthsAndDeathsArray:	.space	16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
+gridSize:		.word	64	#The width or length of the working grid.
+gridArea:		.word	4096
 deadCellColor:		.word	0x000000	#The color chosen for a dead cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
 sleepTime:		.word	0	#The amount of time to wait before displaying the next generation (in ms).
@@ -86,15 +86,15 @@ InitializeArray:	#Create the array with the chosen pattern.
 	jal	Draw			#Draw the pixel in that space
 	
 	#render a 10-cell row to the grid
-	li	$t1, 352
+	#li	$t1, 352
 	Preset2:
-	addu	$a0, $zero, $t1	#Start at pos 352
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal Draw
-	addiu	$t1, $t1, 1
-	ble	$t1, 362, Preset2
+	#addu	$a0, $zero, $t1	#Start at pos 352
+	#jal	GetDisplayAddress
+	#move	$a0, $v0
+	#addu	$a1, $s4, 0
+	#jal Draw
+	#addiu	$t1, $t1, 1
+	#ble	$t1, 362, Preset2
 	
 	li	$t1, 0	
 	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
@@ -102,7 +102,7 @@ InitializeArray:	#Create the array with the chosen pattern.
 	addu	$t2, $s1, $t1		#Get address for current array index into $t2
 	sw	$s3, ($t2)		#Store 0 at the array index (for blank)
 	addiu	$t1, $t1, 4		#Advance the pointer to the next word
-	bne	$t1, $t3, InitializeBirthsAndDeathsArray	#Loop until the array is filled
+	ble	$t1, $t3, InitializeBirthsAndDeathsArray	#Loop until the array is filled
 
 GameOfLife:
 	li	$t5, 0			#Set $t5 to the current position
@@ -121,7 +121,7 @@ GameOfLife:
 			#if $v1 returned less than 2, set this cell as dead
 			blt	$v1, 2, SetDead		#Set as dead if there are fewer than 2 neighbors
 			bgt	$v1, 3, SetDead		#Set as dead if there are greater than 3 neighbors
-			j	CheckLoop
+			j	SetAlive
 			SetDead:
 				sw	$s3, ($t4)
 				j	CheckLoop
@@ -135,6 +135,7 @@ GameOfLife:
 		CheckLoop:	#Check if we still need to loop through the rest of the display
 		addiu	$t5, $t5, 1			#Advance current position by 1
 		beq	$t5, $s5, DisplayGeneration	#If the current position is greater than the total size, start displaying the births and deaths of this generation
+		j	GOLLoop
 
 	GOLAlgorithm:
 		#Store return address in the stack
@@ -267,7 +268,7 @@ GameOfLife:
 
 DisplayGeneration:	#Display the current generation in the bitmap display from the births and deaths array.
 	#DEBUG: Is it the display code at fault or the array? Let's add white to the first pixel.
-	sw	$s4, ($s1)	#It's the array... So is it the array or the algorithm (really hope it's not the algorithm)
+	#sw	$s4, ($s1)	#It's the array... So is it the array or the algorithm (really hope it's not the algorithm)
 
 	#mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
 	li	$t1, 0		#Initialize variable for current position.
