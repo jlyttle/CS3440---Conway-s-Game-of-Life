@@ -7,19 +7,24 @@
 #$s0 = grid width/length
 #$s1 = births and deaths array address
 #$s2 = chosen pattern
-#$s3 = Black color (blank / dead)
+#$s3 = Black color (blank)
 #$s4 = White color (Living)
 #$s5 = Total area of the array (64x64)
+#$s6 = Green color (Born)
+#$s7 = Red color (Dead)
 
 .data
 birthsAndDeathsArray:	.space	16384	#An array for tracking births and deaths, the same size as the bitmap display (64x64 pixels expressed in words)
 gridSize:		.word	64	#The width or length of the working grid.
 gridArea:		.word	4096
-deadCellColor:		.word	0x000000	#The color chosen for a dead cell
+blankCellColor:		.word	0x000000	#The color chosen for a blank cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
+birthCellColor:		.word	0x00ff00	#The color chosen for a cell just born
+deadCellColor:		.word	0xff0000	#The color chosen for a dead cell
 sleepTime:		.word	0	#The amount of time to wait before displaying the next generation (in ms).
 patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun)"
 waitTimePrompt:		.asciiz	"Enter the amount of time to wait between displaying generations (in ms)"
+continuePrompt:		.asciiz	"Press space to continue another generation or p to go one quarter-generation per second.\n\n"
 errorMessage1:		.asciiz	"Enter a nonnegative value for time between generations."
 errorMessage2:		.asciiz	"Unable to read input, try again."
 errorMessage3:		.asciiz	"Enter a correct value for pattern choice."
@@ -27,9 +32,11 @@ errorMessage3:		.asciiz	"Enter a correct value for pattern choice."
 .text
 Main:
 	lw	$s0, gridSize		#Load the grid size into $s0
-	lw	$s3, deadCellColor
+	lw	$s3, blankCellColor
 	lw	$s4, livingCellColor
 	lw	$s5, gridArea
+	lw	$s6, birthCellColor
+	lw	$s7, deadCellColor
 PromptForSleepTime:
 	li	$v0, 51
 	la	$a0, waitTimePrompt	#Ask the user how long to wait until displaying the next generation
@@ -67,34 +74,49 @@ InitializeArray:	#Create the array with the chosen pattern.
 	Preset1:
 	#DEBUG: render a single pixel on the grid
 	la	$s1, birthsAndDeathsArray	#Load the birth and death tracking array into $s1
-	#srl	$a0, $s5, 1			#Get the total size of the space, SRL, and add 32 to get the middle
-	#addiu	$a0, $a0, 32
-	li	$a0, 3
-	jal	GetDisplayAddress	#Get the address for that space
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw			#Draw the pixel in that space
-	li	$a0, 4
-	jal	GetDisplayAddress	#Get the address for that space
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal	Draw			#Draw the pixel in that space
-	li	$a0, 5
+	srl	$a0, $s5, 1			#Get the total size of the space, SRL, and add 32 to get the middle
+	addiu	$a0, $a0, 32
+	#li	$a0, 3
 	jal	GetDisplayAddress	#Get the address for that space
 	move	$a0, $v0
 	addu	$a1, $s4, 0
 	jal	Draw			#Draw the pixel in that space
 	
+	#Corner case
+	li	$a0, 4033
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw
+	
+	li	$a0, 4032
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw
+	
+	li	$a0, 3969
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw
+	
+	li	$a0, 3968
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw
+	
 	#render a 10-cell row to the grid
-	#li	$t1, 352
+	li	$t1, 600
 	Preset2:
-	#addu	$a0, $zero, $t1	#Start at pos 352
-	#jal	GetDisplayAddress
-	#move	$a0, $v0
-	#addu	$a1, $s4, 0
-	#jal Draw
-	#addiu	$t1, $t1, 1
-	#ble	$t1, 362, Preset2
+	addu	$a0, $zero, $t1	#Start at pos 352
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal Draw
+	addiu	$t1, $t1, 1
+	ble	$t1, 609, Preset2
 	
 	li	$t1, 0	
 	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
@@ -104,9 +126,10 @@ InitializeArray:	#Create the array with the chosen pattern.
 	addiu	$t1, $t1, 4		#Advance the pointer to the next word
 	ble	$t1, $t3, InitializeBirthsAndDeathsArray	#Loop until the array is filled
 
+	li	$t9, 0			#Set $t9 to the current generation
 GameOfLife:
+	addiu	$t9, $t9, 1
 	li	$t5, 0			#Set $t5 to the current position
-	
 	GOLLoop:	
 		#For each pixel in the display array, run the algorithm
 		addiu	$a0, $t5, 0			#Copy the current position into argument
@@ -121,7 +144,7 @@ GameOfLife:
 			#if $v1 returned less than 2, set this cell as dead
 			blt	$v1, 2, SetDead		#Set as dead if there are fewer than 2 neighbors
 			bgt	$v1, 3, SetDead		#Set as dead if there are greater than 3 neighbors
-			j	SetAlive
+			j	SetLiving
 			SetDead:
 				sw	$s3, ($t4)
 				j	CheckLoop
@@ -131,6 +154,9 @@ GameOfLife:
 			j	CheckLoop
 			SetAlive:
 				sw	$s4, ($t4)
+				j	CheckLoop
+		SetLiving:				#Set as white if the cell continues living
+			sw	$s4, ($t4)
 		
 		CheckLoop:	#Check if we still need to loop through the rest of the display
 		addiu	$t5, $t5, 1			#Advance current position by 1
@@ -267,10 +293,6 @@ GameOfLife:
 		jr	$ra
 
 DisplayGeneration:	#Display the current generation in the bitmap display from the births and deaths array.
-	#DEBUG: Is it the display code at fault or the array? Let's add white to the first pixel.
-	#sw	$s4, ($s1)	#It's the array... So is it the array or the algorithm (really hope it's not the algorithm)
-
-	#mulu	$t0, $s0, $s0	#Multiply width by height (same value) to get total size.
 	li	$t1, 0		#Initialize variable for current position.
 	DrawLoop:
 		add	$a0, $t1, $zero		#Load current position as an argument for GetDisplayAddress.
@@ -285,7 +307,27 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 		addiu	$t1, $t1, 1		#Increment position
 		bne	$t1, $s5, DrawLoop	#Loop until we've filled the whole display
 	
-		j	Exit #DEBUG
+	#Display current generation number in the cli
+	li	$v0, 1
+	addu	$a0, $t9, $zero
+	syscall
+	li	$v0, 11
+	addiu	$a0, $zero, 10
+	syscall
+	beq	$t8, 1, GameOfLife	#jump back up if auto advance is on
+	li	$v0, 4
+	la	$a0, continuePrompt
+	syscall
+	li	$v0, 12
+	syscall
+	beq	$v0, 32, GameOfLife
+	beq	$v0, 112, SetAutoOn
+	beq	$v0, 80, SetAutoOn
+	j	Exit
+	
+	SetAutoOn:
+		li	$t8, 1
+		j	GameOfLife
 	
 GetDisplayAddress:	#Gets the address for the bitmap display given a position in $a0.
 	mul	$v0, $a0, 4	#Multiply current position by 4 to get word size
