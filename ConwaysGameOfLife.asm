@@ -49,7 +49,8 @@ PatternMenu: #Choose either the glider gun pattern or a random pattern.
 	move	$s2, $a0		#Store pattern choice in $s2
 
 InitializeArray:	#Create the array with the chosen pattern.
-	beq	$s2, 1, Preset1		#Initialize the glider gun pattern
+	beq	$s2, 2, Preset1		#Initialize the glider gun pattern
+	beq	$s2, 3, Preset2		#Initialize the 10-cell row pattern
 
 	Random:	
 	#If the user chose random, we want to intialize the array with a chance of having a living cell. To have more space, we'll choose a third of a chance of spawning.
@@ -58,18 +59,85 @@ InitializeArray:	#Create the array with the chosen pattern.
 	li	$a1, 9	#Set 9 as the upper bound (0 is the lower bound).
 	
 	Preset1:
+	#Glider gun preset
+	li	$a0, 324
+	jal	DrawForPreset
+	li	$a0, 325
+	jal	DrawForPreset
+	li	$a0, 388
+	jal	DrawForPreset
+	li	$a0, 389
+	jal	DrawForPreset
+	
+	li	$a0, 333
+	jal	DrawForPreset
+	li	$a0, 334
+	jal	DrawForPreset
+	li	$a0, 346
+	jal	DrawForPreset
+	li	$a0, 347
+	jal	DrawForPreset
+	li	$a0, 398
+	jal	DrawForPreset
+	li	$a0, 396
+	jal	DrawForPreset
+	li	$a0, 460
+	jal	DrawForPreset
+	li	$a0, 461
+	jal	DrawForPreset
+	li	$a0, 282
+	jal	DrawForPreset
+	li	$a0, 219
+	jal	DrawForPreset
+	li	$a0, 284
+	jal	DrawForPreset
+	li	$a0, 220
+	jal	DrawForPreset
+	
+	li	$a0, 231
+	jal	DrawForPreset
+	li	$a0, 295
+	jal	DrawForPreset		#Right square
+	li	$a0, 296
+	jal	DrawForPreset
+	li	$a0, 232
+	jal	DrawForPreset
+	
+	li	$a0, 468
+	jal	DrawForPreset
+	li	$a0, 469
+	jal	DrawForPreset
+	li	$a0, 532
+	jal	DrawForPreset
+	li	$a0, 596
+	jal	DrawForPreset
+	li	$a0, 534
+	jal	DrawForPreset
+	
+	li	$a0, 680
+	jal	DrawForPreset
+	li	$a0, 681
+	jal	DrawForPreset
+	li	$a0, 746
+	jal	DrawForPreset
+	li	$a0, 744
+	jal	DrawForPreset
+	li	$a0, 808
+	jal	DrawForPreset
+	
+	#j	ArrayInit
+	j	PatternMenu
+	
+	Preset2:
 	#render a 10-cell row to the grid
 	li	$t1, 600
-	Preset2:
+	PresetLoop1:
 	addu	$a0, $zero, $t1	#Start at pos 600
-	jal	GetDisplayAddress
-	move	$a0, $v0
-	addu	$a1, $s4, 0
-	jal Draw
+	jal	DrawForPreset
 	addiu	$t1, $t1, 1
-	ble	$t1, 609, Preset2
+	ble	$t1, 609, PresetLoop1
 	
-	
+ArrayInit:	
 	li	$t1, 0	
 	mul	$t3, $s5, 4		#Area size in words to use with the branch in the loop
 	InitializeBirthsAndDeathsArray:
@@ -305,6 +373,21 @@ GetDisplayAddress:	#Gets the address for the bitmap display given a position in 
 	
 Draw:	#Draws the pixel to the bitmap display given $a0 (location) and $a1 (color)
 	sw	$a1, ($a0)
+	jr	$ra
+
+DrawForPreset:	#Draws the pixel to the grid (used in preset)
+	#Store return address in the stack
+	addi	$sp, $sp, -4
+	sw	$ra, ($sp)
+		
+	jal	GetDisplayAddress
+	move	$a0, $v0
+	addu	$a1, $s4, 0
+	jal	Draw
+	
+	lw	$ra, ($sp)
+	addi	$sp, $sp, 4
+	
 	jr	$ra
 
 Error1:
