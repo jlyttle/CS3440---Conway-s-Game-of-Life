@@ -21,8 +21,8 @@ gridArea:		.word	4096
 blankCellColor:		.word	0x000000	#The color chosen for a blank cell
 livingCellColor:	.word	0xffffff	#The color chosen for a living cell
 deadCellColor:		.word	0xeeeeee	#The starting color for a dead cell
-patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun, 3 for 10-line)"
-continuePrompt:		.asciiz	"Press space to continue another generation, 1 for a random pattern, 2 for glider gun, 3 for 10-line or p to auto-advance.\n\n"
+patternPrompt:		.asciiz	"Choose a pattern (1 for random, 2 for glider gun, 3 for 10-line, 4 for exploder)"
+continuePrompt:		.asciiz	"Press space to continue another generation, 1 for a random pattern, 2 for glider gun, 3 for 10-line, 4 for exploder or p to auto-advance.\n\n"
 errorMessage1:		.asciiz	"Unable to read input, try again."
 errorMessage2:		.asciiz	"Enter a correct value for pattern choice."
 
@@ -45,7 +45,7 @@ PatternMenu: 					#Choose either the glider gun, 10-line pattern or a random pat
 	beq	$a1, -3, Error1
 	
 	blt	$a0, 1, Error2			#If the choice is greater than 3 or less than 1, error
-	bgt	$a0, 3, Error2
+	bgt	$a0, 4, Error2
 	
 	move	$s2, $a0			#Store pattern choice in $s2
 
@@ -63,6 +63,7 @@ ArrayInit:	#Initialize all values in the array to 0 and display
 	#Create the array with the chosen pattern.
 	beq	$s2, 2, Preset1			#Initialize the glider gun pattern
 	beq	$s2, 3, Preset2			#Initialize the 10-cell row pattern
+	beq	$s2, 4, Preset3			#Initialize the exploder pattern
 
 	#If the user chose random, we want to intialize the array with a chance of having a living cell. To have more space, we'll choose a third of a chance of spawning.
 	li	$t0, 0				#Current position
@@ -182,22 +183,51 @@ ArrayInit:	#Initialize all values in the array to 0 and display
 	
 	j	WriteGenToConsole
 	
+	Preset3:
+	#Render the exploder
+	li	$a0, 1952
+	jal	DrawForPreset
+	li	$a0, 1950
+	jal	DrawForPreset
+	li	$a0, 1954
+	jal	DrawForPreset
+	li	$a0, 2014
+	jal	DrawForPreset
+	li	$a0, 2018
+	jal	DrawForPreset
+	li	$a0, 2078
+	jal	DrawForPreset
+	li	$a0, 2082
+	jal	DrawForPreset
+	li	$a0, 2142
+	jal	DrawForPreset
+	li	$a0, 2146
+	jal	DrawForPreset
+	li	$a0, 2208
+	jal	DrawForPreset
+	li	$a0, 2206
+	jal	DrawForPreset
+	li	$a0, 2210
+	jal	DrawForPreset
+	
+	j	WriteGenToConsole
+	
 	PresetLoop1:
 	#Store return address in the stack
 	addi	$sp, $sp, -4
 	sw	$ra, ($sp)
 	
-	addu	$a0, $zero, $t1	#Start at pos 600
+	addu	$a0, $zero, $t1		#Start at pos given in $t1
 	jal	DrawForPreset
-	addiu	$t1, $t1, 1
-	ble	$t1, $t2, PresetLoop1
+	addiu	$t1, $t1, 1		#increment $t1
+	ble	$t1, $t2, PresetLoop1	#loop until we hit the upper bound in $t2
 	
 	lw	$ra, ($sp)
-	addi	$sp, $sp, 4
+	addi	$sp, $sp, 4		#Restore return address from the stack
 	jr	$ra
 
 GameOfLife:
-	addiu	$t9, $t9, 1
+	addiu	$t9, $t9, 1		#Increase the number of generations
 	li	$t5, 0			#Set $t5 to the current position
 	GOLLoop:	
 		#For each pixel in the display array, run the algorithm
@@ -377,15 +407,15 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 		bne	$t1, $s5, DrawLoop	#Loop until we've filled the whole display
 		
 	#Loop 14 times until all grey pixels are transitioned to black
-	li	$t1, 0
-	li	$t4, 0
+	li	$t1, 0				#Current position for each iteration
+	li	$t4, 0				#Loop counter (up to 14)
 	TransitionToBlack:
 		add	$a0, $t1, $zero
-		jal	GetDisplayAddress
+		jal	GetDisplayAddress	#Get address of current location
 		move	$a0, $v0
 		mul	$t2, $t1, 4
-		addu	$t2, $t2, $gp
-		lw	$t3, ($t2)
+		addu	$t2, $t2, $gp		#Add address in words to the global pointer
+		lw	$t3, ($t2)		#Get the color at this location
 		#if this color is not white and not black, subtract 0x111111 and draw
 		beq	$t3, $s3, Increment
 		beq	$t3, $s4, Increment
@@ -397,8 +427,8 @@ DisplayGeneration:	#Display the current generation in the bitmap display from th
 		bne	$t1, $s5, TransitionToBlack
 		
 	addiu	$t4, $t4, 1
-	move	$t1, $zero
-	bne	$t4, 14, TransitionToBlack
+	move	$t1, $zero			#Reset current position to 0
+	bne	$t4, 14, TransitionToBlack	#Loop through the display again until all grey pixels are black
 	
 	lw	$ra, ($sp)
 	addi	$sp, $sp, 4
@@ -410,11 +440,11 @@ WriteGenToConsole:
 	addu	$a0, $t9, $zero
 	syscall
 	li	$v0, 11
-	addiu	$a0, $zero, 10
+	addiu	$a0, $zero, 10		#Print newline character
 	syscall
 	beq	$t8, 1, GameOfLife	#jump back up if auto advance is on
 	li	$v0, 4
-	la	$a0, continuePrompt
+	la	$a0, continuePrompt	#Else, display the prompt to continue
 	syscall
 	li	$v0, 12
 	syscall
@@ -422,12 +452,13 @@ WriteGenToConsole:
 	beq	$v0, 49, SetRandomPattern	#If the user hits 1, change to a different random pattern
 	beq	$v0, 50, SetGliderPattern	#If the user hits 2, change to the glider pattern
 	beq	$v0, 51, SetTenLinePattern	#If the user hits 3, change to the ten line pattern
+	beq	$v0, 52, SetExploderPattern	#If the user hits 4, change to the exploder pattern
 	beq	$v0, 112, SetAutoOn		#If the user hits p or P, change to auto advance
 	beq	$v0, 80, SetAutoOn
-	j	Exit
+	j	Exit				#If the user hits any other key, exit
 	
 	SetAutoOn:
-		li	$t8, 1
+		li	$t8, 1			#Set $t8 to decide whether auto is on
 		j	GameOfLife
 		
 	SetRandomPattern:
@@ -440,6 +471,10 @@ WriteGenToConsole:
 		
 	SetTenLinePattern:
 		li	$s2, 3			#Chosen pattern is 10-line
+		j	ArrayInit
+		
+	SetExploderPattern:
+		li	$s2, 4			#Chosen pattern is exploder
 		j	ArrayInit
 	
 GetDisplayAddress:	#Gets the address for the bitmap display given a position in $a0.
@@ -469,14 +504,14 @@ DrawForPreset:	#Draws the pixel to the grid (used in preset)
 Error1:
 	li	$v0, 55
 	li	$a1, 0
-	la	$a0, errorMessage1
+	la	$a0, errorMessage1		#Display error message if input could not be read
 	syscall
 	j	PatternMenu
 	
 Error2:
 	li	$v0, 55
 	li	$a1, 0
-	la	$a0, errorMessage2
+	la	$a0, errorMessage2		#Display error message if the value of pattern was incorrect
 	syscall
 	j	PatternMenu
 
