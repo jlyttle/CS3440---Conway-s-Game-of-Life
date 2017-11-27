@@ -1,5 +1,35 @@
 * Overview / What does the program do?
+This program is an implementation of John Conway's Game of Life in Mips, 
+utilizing the Mars bitmap display for visualization. The game is a 
+"zero-player" simulation game consisting of a two-dimensional grid of cells sized 64 by 64, which can 
+either be living or dead, here represented by white and black respectively. 
+The first generation consists of the input to the algorithm and its output 
+becomes the next generation, with births and deaths happening simultaneously. 
+This is then run recursively for all future generations. The rules of the game are: 
+
+1. A living cell with fewer than two neighbors dies by underpopulation.
+2. A living cell with two or three neighbors lives on to the next generation.
+3. A living cell with more than three neighbors dies by overpopulation.
+4. A dead cell with exactly three neighbors becomes living by reproduction.
+
+This implementation allows for manually advancing each generation or setting 
+a key to automatically advance with a delay. It features a fade effect between 
+generations to highlight the cells that have died from the previous generation. 
+There are 3 built in pattern presets  
+and a random pattern. The presets are effective in showing the emergent 
+patterns of the game while the random pattern shows the colonies that can typically form.
+
 * Program Description / How does it do it?
+The program's first task is to load constants set in the data section of the program into unchanging registers, 
+including the grid width (64), the color chosen for dead cells (black) and living cells (white). 
+These were expressed as constants in the data section rather than loaded as immediates in the program 
+in order to debug and easily change colors. The program prompts for pattern choice 
+and displays an appropriate error if the user enters an incorrect number. 
+
+The array for tracking births and deaths is initialized with a size of 4096 
+elements (64x64) and every element is set to dead, the color black in hexadecimal 
+(0x000000). 
+
 * Testing
   Unit testing was done in order to iteratively develop the Game of Life algorithm, display function, and helper functions. 
   Although the finished program assumes the size of the working area is effectively 64 by 64, in order to test the algorithm
@@ -22,9 +52,19 @@ assuring the algorithm was working, it was not sufficient for testing whether th
 grid size, where the only remaining possible issue would be having an off-by-one error. The bitmap display was tested at 9 pixels, 64 pixels or 
 one full row, half the grid, and finally the full grid. 
 
+After testing had been completed on the algorithm and display, presets and
+ random permutations were added to finalize the program. The presets were 
+again recreated from the online simulation (https://bitstorm.org/gameoflife/)
+ and were tested in manual generation mode against the simulation. The 
+random permutation pattern was tested with 60%, 50%, 40% and 30% spawn rates
+ before settling on 20%. This rate was decided based on the large number 
+of cells that were immediately dying on the first generation for the other 
+rates.
+
 A planned feature of the program was the 
 ability to take a user-specified width as the baseline for the working area; however, the options in the bitmap display only provide support
 for widths that are multiples of 64 (64, 128, 256, 512 and 1024), and any number provided in-between would have been displayed off-center. 
 Another option provided in the bitmap display is a width and length option of each pixel, where increasing those values decrease the effective
-working space. 
+working space. Because of this, the program assumes a width of 64. This 
+provided for consistent testing and results. 
  
